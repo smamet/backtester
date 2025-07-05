@@ -1,0 +1,3 @@
+symbol,timeframe,market_type,is_complete,earliest_date,last_updated
+ETHUSDT,1h,spot,True,2017-08-03 20:59:59.999,2025-07-05 22:26:56.914618
+ETHUSDT,1h,futures,True,2019-11-21 20:59:59.999,2025-07-05 22:27:50.158230

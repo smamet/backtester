@@ -1,0 +1,10 @@
+{
+  "symbol": "ETHUSDT",
+  "timeframe": "funding",
+  "data_type": "funding",
+  "total_records": 6143,
+  "first_date": "2019-11-27T08:00:00",
+  "last_date": "2025-07-05T16:00:00.006000",
+  "file_size_bytes": 327106,
+  "last_updated": "2025-07-05T23:35:40.467351"
+}

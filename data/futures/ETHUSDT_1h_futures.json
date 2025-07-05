@@ -1,0 +1,12 @@
+{
+  "symbol": "ETHUSDT",
+  "timeframe": "1h",
+  "market_type": "futures",
+  "total_records": 48998,
+  "first_timestamp": "2019-11-27T07:00:00",
+  "last_timestamp": "2025-06-29T20:00:00",
+  "download_start_date": "2019-11-21T20:59:59.999000",
+  "download_end_date": "2025-07-05T22:27:17.620899",
+  "last_download": "2025-07-05T22:27:50.135715",
+  "last_updated": "2025-07-05T22:27:50.147388"
+}

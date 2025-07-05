@@ -1,0 +1,10 @@
+{
+  "symbol": "CTKUSDT",
+  "timeframe": "funding",
+  "data_type": "funding",
+  "total_records": 200,
+  "first_date": "2025-04-30T08:00:00",
+  "last_date": "2025-06-19T00:00:00.005000",
+  "file_size_bytes": 15666,
+  "last_updated": "2025-07-05T23:41:16.074608"
+}

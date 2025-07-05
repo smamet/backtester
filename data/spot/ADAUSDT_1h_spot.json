@@ -1,0 +1,10 @@
+{
+  "symbol": "ADAUSDT",
+  "timeframe": "1h",
+  "data_type": "spot",
+  "total_records": 32000,
+  "first_date": "2020-01-13T20:00:00",
+  "last_date": "2025-06-14T23:00:00",
+  "file_size_bytes": 1154642,
+  "last_updated": "2025-07-05T23:37:00.057718"
+}

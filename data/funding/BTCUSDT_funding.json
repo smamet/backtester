@@ -1,0 +1,10 @@
+{
+  "symbol": "BTCUSDT",
+  "timeframe": "funding",
+  "data_type": "funding",
+  "total_records": 6377,
+  "first_date": "2019-09-10T08:00:00",
+  "last_date": "2025-07-05T16:00:00.006000",
+  "file_size_bytes": 338554,
+  "last_updated": "2025-07-05T23:30:44.136379"
+}

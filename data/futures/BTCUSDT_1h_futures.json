@@ -1,0 +1,10 @@
+{
+  "symbol": "BTCUSDT",
+  "timeframe": "1h",
+  "data_type": "futures",
+  "total_records": 51051,
+  "first_date": "2019-09-08T17:00:00",
+  "last_date": "2025-07-05T19:00:00",
+  "file_size_bytes": 1913242,
+  "last_updated": "2025-07-05T23:21:01.863971"
+}

@@ -1,0 +1,10 @@
+{
+  "symbol": "ADAUSDT",
+  "timeframe": "1h",
+  "data_type": "futures",
+  "total_records": 47580,
+  "first_date": "2020-01-31T08:00:00",
+  "last_date": "2025-07-05T19:00:00",
+  "file_size_bytes": 1712458,
+  "last_updated": "2025-07-05T23:36:27.791964"
+}

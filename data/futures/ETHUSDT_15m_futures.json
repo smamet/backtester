@@ -1,0 +1,10 @@
+{
+  "symbol": "ETHUSDT",
+  "timeframe": "15m",
+  "data_type": "futures",
+  "total_records": 196560,
+  "first_date": "2019-11-27T07:45:00",
+  "last_date": "2025-07-05T19:30:00",
+  "file_size_bytes": 6898090,
+  "last_updated": "2025-07-05T23:32:34.585289"
+}

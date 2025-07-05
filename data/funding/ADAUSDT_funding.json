@@ -1,0 +1,10 @@
+{
+  "symbol": "ADAUSDT",
+  "timeframe": "funding",
+  "data_type": "funding",
+  "total_records": 5982,
+  "first_date": "2020-01-20T00:00:00",
+  "last_date": "2025-07-05T16:00:00.006000",
+  "file_size_bytes": 312602,
+  "last_updated": "2025-07-05T23:37:53.232939"
+}

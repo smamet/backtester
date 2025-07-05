@@ -1,0 +1,10 @@
+{
+  "symbol": "BTCUSDT",
+  "timeframe": "15m",
+  "data_type": "spot",
+  "total_records": 137000,
+  "first_date": "2019-08-26T04:30:00",
+  "last_date": "2025-06-30T14:15:00",
+  "file_size_bytes": 5399946,
+  "last_updated": "2025-07-05T23:29:47.375501"
+}

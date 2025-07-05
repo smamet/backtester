@@ -1,0 +1,10 @@
+{
+  "symbol": "ETHUSDT",
+  "timeframe": "15m",
+  "data_type": "spot",
+  "total_records": 132000,
+  "first_date": "2019-11-12T07:45:00",
+  "last_date": "2025-06-30T14:30:00",
+  "file_size_bytes": 4780074,
+  "last_updated": "2025-07-05T23:34:43.687979"
+}
