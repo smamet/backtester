@@ -1,0 +1,10 @@
+{
+  "symbol": "HUSDT",
+  "timeframe": "1m",
+  "data_type": "spot",
+  "total_records": 15905,
+  "first_date": "2025-06-25T09:30:00",
+  "last_date": "2025-07-06T10:34:00",
+  "file_size_bytes": 576882,
+  "last_updated": "2025-07-06T14:34:56.895018"
+}

@@ -1,0 +1,10 @@
+{
+  "symbol": "HUSDT",
+  "timeframe": "margin",
+  "data_type": "margin",
+  "total_records": 34,
+  "first_date": "2025-06-25T09:30:00",
+  "last_date": "2025-07-06T09:30:00",
+  "file_size_bytes": 4602,
+  "last_updated": "2025-07-06T14:34:58.140216"
+}

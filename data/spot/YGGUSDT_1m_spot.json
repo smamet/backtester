@@ -1,0 +1,10 @@
+{
+  "symbol": "YGGUSDT",
+  "timeframe": "1m",
+  "data_type": "spot",
+  "total_records": 674000,
+  "first_date": "2023-08-04T07:40:00",
+  "last_date": "2025-07-06T01:19:00",
+  "file_size_bytes": 19399026,
+  "last_updated": "2025-07-06T13:50:30.744950"
+}

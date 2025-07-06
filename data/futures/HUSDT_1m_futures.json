@@ -1,0 +1,10 @@
+{
+  "symbol": "HUSDT",
+  "timeframe": "1m",
+  "data_type": "futures",
+  "total_records": 15905,
+  "first_date": "2025-06-25T09:30:00",
+  "last_date": "2025-07-06T10:34:00",
+  "file_size_bytes": 577090,
+  "last_updated": "2025-07-06T14:34:44.366115"
+}

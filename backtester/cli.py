@@ -664,7 +664,15 @@ def cmd_backtest(args, config: Config, logger: logging.Logger):
         # Display results
         engine.print_results_summary(results)
         
-        # Note: CSV export removed - only PDF output as requested
+        # Export trades CSV for analysis
+        if results['total_trades'] > 0:
+            from datetime import datetime
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            csv_output = f"data/trades_{args.symbol}_{args.timeframe}_{timestamp}.csv"
+            if engine.export_trades_csv(csv_output):
+                print(f"✅ Trades CSV exported to: {csv_output}")
+            else:
+                print(f"❌ Failed to export trades CSV")
         
         # Additional analysis
         if results['total_trades'] > 0:

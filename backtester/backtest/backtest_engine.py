@@ -23,6 +23,7 @@ from pathlib import Path
 
 from ..config import Config
 from .report_generator import BacktestReportGenerator
+from .fee_manager import FeeManager
 
 
 class ArbitrageBacktestEngine:
@@ -45,26 +46,26 @@ class ArbitrageBacktestEngine:
         self.position_multipliers = [1.0, 1.5, 1.5]  # Size multipliers for each level
         self.max_spread_liquidation = 20.0  # Maximum spread before liquidation (backup)
         self.liquidation_threshold = -0.30  # Liquidate at -30% of total position value
-        self.liquidation_spread = 30.0  # Liquidation occurs at ±30% spread
+        self.liquidation_spread = 50.0  # Liquidation occurs at ±50% spread
         self.exit_threshold = 0.0  # Close when spread reaches 0%
         
         # Leverage-based money management
         self.use_leverage_sizing = True  # Enable leverage-based position sizing
-        self.leverage_target_account_risk = 1.0  # Risk 100% of account at liquidation spread
+        self.leverage_target_account_risk = 0.20  # Risk 20% of account at liquidation spread
         
         # Fee parameters
         self.taker_fee_rate = config.transaction_fee_rate  # Taker fee from config
-        self.usdt_borrow_rate = 0.0001  # Hourly rate for borrowing USDT
-        self.base_asset_borrow_rate = 0.00015  # Hourly rate for borrowing base asset
         self.slippage = config.slippage  # Slippage from config
-        self.funding_rate_frequency = config.funding_rate_frequency  # Funding frequency from config
+        
+        # Initialize fee manager (singleton)
+        self.fee_manager = FeeManager()
         
         # Results tracking
         self.trades = []
         self.positions = []
         self.portfolio_history = []
         
-        self.logger.info("ArbitrageBacktestEngine initialized with leverage-based money management")
+        self.logger.info("ArbitrageBacktestEngine initialized with leverage-based money management and proper fee management")
     
     def _parse_timeframe_to_minutes(self, timeframe: str) -> int:
         """
@@ -96,65 +97,7 @@ class ArbitrageBacktestEngine:
             self.logger.warning(f"Could not parse timeframe '{timeframe}', defaulting to 1 hour")
             return 60
     
-    def _get_rate_scaling_factors(self, timeframe_minutes: int) -> Dict[str, float]:
-        """
-        Calculate scaling factors for funding and margin rates based on timeframe.
-        
-        Args:
-            timeframe_minutes: Number of minutes in the timeframe
-            
-        Returns:
-            Dictionary with scaling factors
-        """
-        # Base rates are typically provided as:
-        # - Funding rates: every 8 hours (480 minutes)
-        # - Margin rates: hourly (60 minutes)
-        
-        # Calculate how many periods fit in the base period
-        funding_base_minutes = 8 * 60  # 8 hours = 480 minutes
-        margin_base_minutes = 60      # 1 hour = 60 minutes
-        
-        # Scaling factors
-        funding_scale = timeframe_minutes / funding_base_minutes
-        margin_scale = timeframe_minutes / margin_base_minutes
-        
-        return {
-            'funding_scale': funding_scale,
-            'margin_scale': margin_scale,
-            'timeframe_minutes': timeframe_minutes
-        }
-    
-    def _scale_rates_for_timeframe(self, timeframe: str = None):
-        """
-        Scale funding and margin rates based on the timeframe.
-        
-        Args:
-            timeframe: Optional timeframe override
-        """
-        if timeframe is None:
-            timeframe = getattr(self.config, 'timeframe', '1h')
-        
-        timeframe_minutes = self._parse_timeframe_to_minutes(timeframe)
-        scaling_factors = self._get_rate_scaling_factors(timeframe_minutes)
-        
-        # Apply scaling to funding rates
-        # Original funding rates are per 8-hour period, need to scale to timeframe
-        if 'funding_rate' in self.data.columns:
-            self.data['scaled_funding_rate'] = self.data['funding_rate'] * scaling_factors['funding_scale']
-        
-        # Apply scaling to margin rates
-        # Original margin rates are hourly, need to scale to timeframe
-        if 'usdt_borrow_rate' in self.data.columns:
-            self.data['scaled_usdt_borrow_rate'] = self.data['usdt_borrow_rate'] * scaling_factors['margin_scale']
-        
-        if 'base_asset_borrow_rate' in self.data.columns:
-            self.data['scaled_base_asset_borrow_rate'] = self.data['base_asset_borrow_rate'] * scaling_factors['margin_scale']
-        
-        self.logger.info(f"Scaled rates for {timeframe} timeframe ({timeframe_minutes} minutes)")
-        self.logger.info(f"  Funding scale factor: {scaling_factors['funding_scale']:.4f}")
-        self.logger.info(f"  Margin scale factor: {scaling_factors['margin_scale']:.4f}")
-        
-        return scaling_factors
+
     
     def load_data(self, 
                   spot_data: pd.DataFrame,
@@ -241,51 +184,9 @@ class ArbitrageBacktestEngine:
                     
                     self.logger.warning("These gaps indicate data collection issues - results may be affected")
             
-            # Add funding rates with forward fill
-            if not funding_rates.empty:
-                funding_clean = funding_rates[['timestamp', 'fundingRate']].rename(
-                    columns={'fundingRate': 'funding_rate'}
-                )
-                self.data = pd.merge_asof(
-                    self.data.sort_values('timestamp'),
-                    funding_clean.sort_values('timestamp'),
-                    on='timestamp',
-                    direction='backward'
-                ).ffill()
-            else:
-                self.data['funding_rate'] = 0.0
-            
-            # Add margin borrowing rates from data files
-            if margin_rates is not None and not margin_rates.empty:
-                # Extract base asset symbol from config
-                base_asset = self.config.symbol.replace('USDT', '').lower() if hasattr(self.config, 'symbol') else 'base'
-                
-                # Prepare margin rate columns
-                expected_cols = ['timestamp', 'usdt_borrow_rate', f'{base_asset}_borrow_rate']
-                available_cols = [col for col in expected_cols if col in margin_rates.columns]
-                
-                if len(available_cols) >= 2:  # timestamp + at least one rate
-                    margin_clean = margin_rates[available_cols]
-                    
-                    # Merge margin rates
-                    self.data = pd.merge_asof(
-                        self.data.sort_values('timestamp'),
-                        margin_clean.sort_values('timestamp'),
-                        on='timestamp',
-                        direction='backward'
-                    ).ffill()
-                    
-                    # If base asset rate column doesn't exist, use a default multiplier of USDT rate
-                    if f'{base_asset}_borrow_rate' not in self.data.columns:
-                        self.data[f'{base_asset}_borrow_rate'] = self.data['usdt_borrow_rate'] * 1.5
-                        
-                    self.logger.info(f"Loaded margin rates for USDT and {base_asset.upper()}")
-                else:
-                    self.logger.warning(f"Margin rate data missing expected columns: {expected_cols}")
-                    self._add_default_margin_rates()
-            else:
-                self.logger.warning("No margin rate data provided, using default rates")
-                self._add_default_margin_rates()
+            # Initialize fee manager with rate data
+            symbol = getattr(self.config, 'symbol', 'BTCUSDT')
+            self.fee_manager.load_data(funding_rates, margin_rates, symbol)
             
             # Calculate spread percentage: (futures - spot) / spot * 100
             self.data['spread_pct'] = ((self.data['futures_price'] - self.data['spot_price']) / 
@@ -294,16 +195,6 @@ class ArbitrageBacktestEngine:
             # Add time-based columns for analysis
             self.data['datetime'] = pd.to_datetime(self.data['timestamp'])
             self.data = self.data.sort_values('timestamp').reset_index(drop=True)
-            
-            # Scale rates for the current timeframe
-            timeframe = getattr(self.config, 'timeframe', '1h')
-            scaling_factors = self._scale_rates_for_timeframe(timeframe)
-            
-            # Use scaled rates for calculations (fallback to original calculation if scaling fails)
-            if 'scaled_funding_rate' in self.data.columns:
-                self.data['hourly_funding_rate'] = self.data['scaled_funding_rate']
-            else:
-                self.data['hourly_funding_rate'] = self.data['funding_rate'] / self.funding_rate_frequency
                 
             self.logger.info(f"Final data loaded: {len(self.data)} records from {self.data['datetime'].min()} to {self.data['datetime'].max()}")
             
@@ -317,21 +208,6 @@ class ArbitrageBacktestEngine:
         except Exception as e:
             self.logger.error(f"Failed to load data: {e}")
             return False
-    
-    def _add_default_margin_rates(self):
-        """Add default margin borrowing rates as fallback."""
-        # Default hourly rates (these should ideally come from data files)
-        self.data['usdt_borrow_rate'] = 0.00005  # 0.005% hourly for USDT
-        
-        # Base asset rates vary by asset type
-        base_asset = self.config.symbol.replace('USDT', '').upper() if hasattr(self.config, 'symbol') else 'BASE'
-        if base_asset in ['BTC', 'ETH']:
-            default_base_rate = 0.0001  # 0.01% hourly for major assets
-        else:
-            default_base_rate = 0.00015  # 0.015% hourly for altcoins
-            
-        self.data['base_asset_borrow_rate'] = default_base_rate
-        self.logger.info(f"Using default margin rates: USDT=0.005%, {base_asset}={default_base_rate*100:.3f}% hourly")
     
     def run_backtest(self, initial_capital: float = 10000) -> Dict:
         """
@@ -373,6 +249,7 @@ class ArbitrageBacktestEngine:
         total_funding_costs_accumulated = 0.0  # Track funding costs separately
         total_margin_costs_accumulated = 0.0   # Track margin costs separately
         arbitrage_direction = None  # Track whether we're in positive or negative spread arbitrage
+        liquidation_occurred = False  # Track if liquidation has occurred (stops all trading)
         
         trades_executed = []
         
@@ -386,9 +263,18 @@ class ArbitrageBacktestEngine:
             
             # Check for position entries (bidirectional arbitrage)
             # Only allow one direction at a time - don't mix positive and negative spread strategies
+            # Add safeguards to prevent entries at extreme spreads near liquidation
+            
+            # Stop all trading if liquidation has occurred
+            if liquidation_occurred:
+                continue
+            
             if not position_open or arbitrage_direction == 'positive':
                 # POSITIVE SPREAD ARBITRAGE (futures > spot): Long spot + Short futures
-                if current_spread > self.entry_thresholds_positive[0] and position_sizes[0] == 0:
+                # Prevent entries if spread is too close to liquidation threshold
+                if (current_spread > self.entry_thresholds_positive[0] and 
+                    current_spread < self.liquidation_spread * 0.8 and  # Max 40% spread for entries
+                    position_sizes[0] == 0):
                     # Calculate all position sizes upfront using leverage-based sizing
                     if self.use_leverage_sizing:
                         calculated_position_sizes = self.calculate_leverage_position_sizes(
@@ -441,7 +327,10 @@ class ArbitrageBacktestEngine:
             
             if not position_open or arbitrage_direction == 'negative':
                 # NEGATIVE SPREAD ARBITRAGE (futures < spot): Long futures + Short margin
-                if current_spread < self.entry_thresholds_negative[0] and position_sizes[0] == 0:
+                # Prevent entries if spread is too close to liquidation threshold
+                if (current_spread < self.entry_thresholds_negative[0] and 
+                    current_spread > -self.liquidation_spread * 0.8 and  # Max -40% spread for entries
+                    position_sizes[0] == 0):
                     # Calculate all position sizes upfront using leverage-based sizing
                     if self.use_leverage_sizing:
                         calculated_position_sizes = self.calculate_leverage_position_sizes(
@@ -512,13 +401,13 @@ class ArbitrageBacktestEngine:
             # Check for position exit: spread <= 0% or liquidation
             liquidation_triggered = False
             
-            # Check for liquidation at ±30% spread
+            # Check for liquidation at ±50% spread
             if position_open:
                 if arbitrage_direction == 'positive':
-                    # For positive spread arbitrage, liquidate when spread reaches 30%
+                    # For positive spread arbitrage, liquidate when spread reaches 50%
                     liquidation_triggered = current_spread >= self.liquidation_spread
                 elif arbitrage_direction == 'negative':
-                    # For negative spread arbitrage, liquidate when spread reaches -30%
+                    # For negative spread arbitrage, liquidate when spread reaches -50%
                     liquidation_triggered = current_spread <= -self.liquidation_spread
             
             # Check for position exit: spread converges to 0% or liquidation
@@ -533,21 +422,36 @@ class ArbitrageBacktestEngine:
             
             if exit_condition:
                 if liquidation_triggered:
-                    exit_reason = "liquidation_30pct_spread"
+                    exit_reason = "liquidation_50pct_spread"
                 elif (arbitrage_direction == 'positive' and current_spread <= self.exit_threshold) or \
                      (arbitrage_direction == 'negative' and current_spread >= -self.exit_threshold):
                     exit_reason = "normal"
                 else:
                     exit_reason = "unknown"
                 
-                # Close all open positions
+                # Close all open positions and calculate carry fees
                 for level in range(3):
                     if position_sizes[level] > 0:
+                        # Calculate position entry time for this level
+                        entry_time = self.data.iloc[trade_start_idx]['datetime'] if trade_start_idx else current_time
+                        exit_time = current_time
+                        position_value = position_sizes[level] * spot_price
+                        
+                        # Calculate carry fees using FeeManager
+                        carry_fees = self.fee_manager.calculate_position_fees(
+                            position_value, entry_time, exit_time, arbitrage_direction
+                        )
+                        
                         trade = self._execute_exit_trade(i, level + 1, position_sizes[level], 
                                                        current_spread, spot_price, futures_price,
-                                                       entry_spreads[level], exit_reason, arbitrage_direction)
+                                                       entry_spreads[level], exit_reason, arbitrage_direction, carry_fees)
                         trades_executed.append(trade)
                         current_capital += trade['net_pnl']
+                        
+                        # Track carry costs
+                        total_carry_costs_accumulated += carry_fees['total_carry_fee']
+                        total_funding_costs_accumulated += carry_fees['funding_fee']
+                        total_margin_costs_accumulated += carry_fees['margin_fee']
                 
                 # Calculate position-level metrics
                 position_duration = i - trade_start_idx if trade_start_idx else 0
@@ -563,43 +467,36 @@ class ArbitrageBacktestEngine:
                 arbitrage_direction = None  # Reset arbitrage direction
                 max_adverse_spread = 0.0
                 trade_start_idx = None
+                
+                # Handle liquidation - account is wiped out, stop all trading
+                if liquidation_triggered:
+                    liquidation_occurred = True
+                    current_capital = 0.0  # Account balance wiped out
+                    
+                    # Log liquidation event
+                    total_position_value = sum(position_sizes[j] * spot_price for j in range(3) if position_sizes[j] > 0)
+                    self.logger.critical(f"🚨 LIQUIDATION TRIGGERED at {current_time}")
+                    self.logger.critical(f"   Spread: {current_spread:.2f}%")
+                    self.logger.critical(f"   Total Position Value: ${total_position_value:,.2f}")
+                    self.logger.critical(f"   Account Balance: ${current_capital:,.2f}")
+                    self.logger.critical(f"   🛑 ALL TRADING STOPPED - ACCOUNT LIQUIDATED")
+                    
+                    # Display liquidation message
+                    print(f"\n{'='*80}")
+                    print(f"🚨 LIQUIDATION TRIGGERED!")
+                    print(f"   Time: {current_time}")
+                    print(f"   Spread: {current_spread:.2f}%")
+                    print(f"   Direction: {arbitrage_direction}")
+                    print(f"   Total Position Value: ${total_position_value:,.2f}")
+                    print(f"   Account Balance: ${current_capital:,.2f}")
+                    print(f"🛑 ALL TRADING STOPPED - ACCOUNT LIQUIDATED")
+                    print(f"{'='*80}")
+                    
+                    # Break out of the main loop - no more trading possible
+                    break
             
-            # Calculate ongoing fees for open positions
-            if position_open and total_position > 0:
-                funding_costs = 0.0
-                margin_costs = 0.0
-                
-                if arbitrage_direction == 'positive':
-                    # POSITIVE SPREAD ARBITRAGE: Long spot + Short futures
-                    # Funding rate costs (we're SHORT futures, so we PAY funding when positive)
-                    funding_costs = (total_position * futures_price * 
-                                   current_row['hourly_funding_rate'])
-                    
-                    # Margin borrowing costs (we're LONG spot with borrowed USDT)
-                    usdt_rate = (current_row.get('scaled_usdt_borrow_rate') or 
-                               current_row.get('usdt_borrow_rate', 0))
-                    margin_costs = (total_position * spot_price * usdt_rate)
-                    
-                elif arbitrage_direction == 'negative':
-                    # NEGATIVE SPREAD ARBITRAGE: Long futures + Short spot (margin)
-                    # Funding rate costs (we're LONG futures, so we RECEIVE funding when positive)
-                    funding_costs = -(total_position * futures_price * 
-                                    current_row['hourly_funding_rate'])
-                    
-                    # Margin borrowing costs (we're SHORT spot, so we pay borrowing costs on base asset)
-                    # Extract base asset symbol from config
-                    base_asset = self.config.symbol.replace('USDT', '').lower() if hasattr(self.config, 'symbol') else 'base'
-                    base_asset_rate = (current_row.get(f'scaled_{base_asset}_borrow_rate') or 
-                                     current_row.get(f'{base_asset}_borrow_rate', 0))
-                    margin_costs = (total_position * spot_price * base_asset_rate)
-                
-                # Total costs (can be positive or negative depending on funding direction)
-                total_carry_costs = funding_costs + margin_costs
-                current_capital -= total_carry_costs
-                total_carry_costs_accumulated += total_carry_costs
-                total_funding_costs_accumulated += funding_costs
-                total_margin_costs_accumulated += margin_costs
-                self.data.at[i, 'fees'] = -total_carry_costs  # Track as negative expense
+            # Note: Ongoing fees are now calculated when positions are closed using FeeManager
+            # This provides more accurate fee calculations based on actual position duration
             
             # Update portfolio value
             if position_open and total_position > 0:
@@ -662,17 +559,24 @@ class ArbitrageBacktestEngine:
     
     def _execute_exit_trade(self, idx: int, level: int, position_size: float,
                           current_spread: float, spot_price: float, futures_price: float,
-                          entry_spread: float, exit_reason: str, direction: str) -> Dict:
-        """Execute an exit trade with PnL calculation."""
+                          entry_spread: float, exit_reason: str, direction: str, 
+                          carry_fees: Dict[str, float] = None) -> Dict:
+        """Execute an exit trade with PnL calculation including carry fees."""
         
         # Calculate trade amounts
         trade_amount = position_size * spot_price
         
-        # Exit fees
+        # Exit fees (trading fees only)
         futures_fee = trade_amount * self.taker_fee_rate
         margin_fee = trade_amount * self.taker_fee_rate  # Use taker fee for margin exit
         slippage_cost = trade_amount * self.slippage
-        total_fees = futures_fee + margin_fee + slippage_cost
+        trading_fees = futures_fee + margin_fee + slippage_cost
+        
+        # Add carry fees if provided
+        if carry_fees is None:
+            carry_fees = {'funding_fee': 0.0, 'margin_fee': 0.0, 'total_carry_fee': 0.0}
+        
+        total_fees = trading_fees + carry_fees['total_carry_fee']
         
         # Calculate PnL from spread convergence
         if direction == 'positive':
@@ -700,6 +604,9 @@ class ArbitrageBacktestEngine:
             'futures_fee': futures_fee,
             'margin_fee': margin_fee,
             'slippage_cost': slippage_cost,
+            'funding_fee': carry_fees['funding_fee'],
+            'margin_carry_fee': carry_fees['margin_fee'],
+            'total_carry_fee': carry_fees['total_carry_fee'],
             'total_fees': total_fees,
             'net_pnl': net_pnl,
             'exit_reason': exit_reason,

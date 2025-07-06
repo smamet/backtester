@@ -1,0 +1,10 @@
+{
+  "symbol": "YGGUSDT",
+  "timeframe": "margin",
+  "data_type": "margin",
+  "total_records": 2106,
+  "first_date": "2023-08-04T07:40:00",
+  "last_date": "2025-07-05T23:40:00",
+  "file_size_bytes": 80370,
+  "last_updated": "2025-07-06T13:50:50.247056"
+}
