@@ -1,0 +1,10 @@
+{
+  "symbol": "CTKUSDT",
+  "timeframe": "1m",
+  "data_type": "futures",
+  "total_records": 95629,
+  "first_date": "2025-04-30T10:15:00",
+  "last_date": "2025-07-05T20:03:00",
+  "file_size_bytes": 2650114,
+  "last_updated": "2025-07-06T00:04:21.400844"
+}

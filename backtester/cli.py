@@ -7,9 +7,11 @@ import sys
 from datetime import datetime
 from pathlib import Path
 import logging
+import pandas as pd
 
 from .config import Config
 from .downloader import DataDownloader
+from .backtest.backtest_engine import ArbitrageBacktestEngine
 from .utils.helpers import setup_logging, format_number
 
 
@@ -35,8 +37,14 @@ Examples:
   # Verify data integrity
   backtester verify --symbol BTCUSDT
 
-  # Run backtest (placeholder)
-  backtester backtest --symbol BTCUSDT
+  # Run backtest
+  backtester backtest --symbol BTCUSDT --capital 10000
+  
+  # Run backtest with PDF report generation
+  backtester backtest --symbol BTCUSDT --generate-pdf
+  
+  # Run backtest with custom PDF output path
+  backtester backtest --symbol BTCUSDT --generate-pdf --pdf-output my_report.pdf
         """
     )
     
@@ -72,14 +80,18 @@ Examples:
     verify_parser.add_argument('--symbol', type=str, default='BTCUSDT',
                              help='Trading symbol (default: BTCUSDT)')
     
-    # Backtest command (placeholder)
-    backtest_parser = subparsers.add_parser('backtest', help='Run backtest (placeholder)')
+    # Backtest command
+    backtest_parser = subparsers.add_parser('backtest', help='Run arbitrage backtest')
     backtest_parser.add_argument('--symbol', type=str, default='BTCUSDT',
                                help='Trading symbol (default: BTCUSDT)')
     backtest_parser.add_argument('--timeframe', type=str, default='1h',
                                help='Timeframe (default: 1h)')
     backtest_parser.add_argument('--capital', type=float, default=10000,
                                help='Initial capital (default: 10000)')
+    backtest_parser.add_argument('--generate-pdf', action='store_true',
+                               help='Generate PDF report after backtest')
+    backtest_parser.add_argument('--pdf-output', type=str,
+                               help='PDF output file path (default: auto-generated)')
     
     # Global options
     parser.add_argument('--config-file', type=str,
@@ -409,7 +421,6 @@ def cmd_inspect(args, config: Config, logger: logging.Logger):
             return 1
         
         # Read the data
-        import pandas as pd
         df = pd.read_feather(file_path)
         
         if df.empty:
@@ -491,20 +502,202 @@ def cmd_inspect(args, config: Config, logger: logging.Logger):
 
 
 def cmd_backtest(args, config: Config, logger: logging.Logger):
-    """Handle backtest command (placeholder)."""
-    print(f"🧮 Running backtest for {args.symbol} (placeholder implementation)")
+    """Handle backtest command."""
+    print(f"🧮 Running arbitrage backtest for {args.symbol}")
     
     # Setup configuration
     setup_command_config(args, config)
     
     try:
-        # This is a placeholder implementation
-        print(f"Symbol: {args.symbol}")
-        print(f"Timeframe: {args.timeframe}")
-        print(f"Initial Capital: ${format_number(args.capital)}")
-        print("\n⚠️  Backtest functionality is not yet implemented.")
-        print("   This is a placeholder. The focus was on the data download infrastructure.")
-        print("   The backtest engine can be extended in future development.")
+        # Check if data files exist
+        spot_file = config.get_spot_file_path(args.symbol, args.timeframe)
+        futures_file = config.get_futures_file_path(args.symbol, args.timeframe)
+        funding_file = config.get_funding_file_path(args.symbol)
+        margin_file = config.data_dir / "margin" / f"{args.symbol}_margin.feather"
+        
+        missing_files = []
+        if not spot_file.exists():
+            missing_files.append(f"Spot data: {spot_file}")
+        if not futures_file.exists():
+            missing_files.append(f"Futures data: {futures_file}")
+        if not funding_file.exists():
+            missing_files.append(f"Funding data: {funding_file}")
+        
+        if missing_files:
+            print(f"❌ Missing required data files:")
+            for file in missing_files:
+                print(f"   - {file}")
+            print(f"\n💡 Run data download first:")
+            print(f"   backtester download --symbol {args.symbol} --timeframe {args.timeframe}")
+            return 1
+        
+        # Load data
+        print(f"📊 Loading data files...")
+        spot_data = pd.read_feather(spot_file)
+        futures_data = pd.read_feather(futures_file)
+        funding_data = pd.read_feather(funding_file)
+        
+        # Load margin rate data if available
+        margin_data = None
+        if margin_file.exists():
+            margin_data = pd.read_feather(margin_file)
+            print(f"✅ Data loaded:")
+            print(f"   Spot: {len(spot_data):,} records")
+            print(f"   Futures: {len(futures_data):,} records")
+            print(f"   Funding: {len(funding_data):,} records")
+            print(f"   Margin: {len(margin_data):,} records")
+        else:
+            print(f"⚠️  Margin rate file not found: {margin_file}")
+            print(f"✅ Data loaded:")
+            print(f"   Spot: {len(spot_data):,} records")
+            print(f"   Futures: {len(futures_data):,} records")
+            print(f"   Funding: {len(funding_data):,} records")
+            print(f"   Margin: Using default rates")
+        
+        # Check for missing or insufficient data and show warnings
+        warnings = []
+        
+        # Check spot data quality
+        if len(spot_data) < 100:
+            warnings.append(f"⚠️  Insufficient spot data: only {len(spot_data)} records")
+        
+        # Check futures data quality
+        if len(futures_data) < 100:
+            warnings.append(f"⚠️  Insufficient futures data: only {len(futures_data)} records")
+        
+        # Check funding data quality
+        if len(funding_data) < 10:
+            warnings.append(f"⚠️  Insufficient funding data: only {len(funding_data)} records")
+        elif funding_data['fundingRate'].isna().sum() > len(funding_data) * 0.1:
+            warnings.append(f"⚠️  High percentage of missing funding rates: {funding_data['fundingRate'].isna().sum()}/{len(funding_data)}")
+        
+        # Check margin data
+        if margin_data is None:
+            warnings.append(f"⚠️  No margin rate data - using default rates (may not reflect real costs)")
+        elif len(margin_data) < 10:
+            warnings.append(f"⚠️  Insufficient margin data: only {len(margin_data)} records")
+        
+        # Check data alignment
+        spot_start = spot_data['timestamp'].min()
+        spot_end = spot_data['timestamp'].max()
+        futures_start = futures_data['timestamp'].min()
+        futures_end = futures_data['timestamp'].max()
+        
+        overlap_start = max(spot_start, futures_start)
+        overlap_end = min(spot_end, futures_end)
+        
+        # Calculate overlap percentage (timestamps are datetime objects)
+        spot_range = spot_end - spot_start
+        futures_range = futures_end - futures_start
+        overlap_range = overlap_end - overlap_start
+        
+        # Check if ranges are positive (Timedelta objects)
+        if spot_range.total_seconds() > 0 and futures_range.total_seconds() > 0:
+            spot_overlap_pct = (overlap_range.total_seconds() / spot_range.total_seconds()) * 100
+            futures_overlap_pct = (overlap_range.total_seconds() / futures_range.total_seconds()) * 100
+            
+            if spot_overlap_pct < 80 or futures_overlap_pct < 80:
+                warnings.append(f"⚠️  Poor data alignment: spot overlap {spot_overlap_pct:.1f}%, futures overlap {futures_overlap_pct:.1f}%")
+        
+        # Check for potential gaps by comparing expected vs actual record counts
+        if args.timeframe == "1h":
+            # Convert timestamp difference to hours (timestamps are datetime objects)
+            expected_hours = overlap_range.total_seconds() / 3600  # Convert seconds to hours
+            expected_records = int(expected_hours)
+        elif args.timeframe == "15m":
+            # Convert timestamp difference to minutes (timestamps are datetime objects)
+            expected_minutes = overlap_range.total_seconds() / 60  # Convert seconds to minutes
+            expected_records = int(expected_minutes / 15)
+        else:
+            expected_records = None
+        
+        if expected_records and expected_records > 0:
+            # Check alignment using inner join to simulate current behavior
+            spot_clean = spot_data[['timestamp', 'close']].rename(columns={'close': 'spot_price'})
+            futures_clean = futures_data[['timestamp', 'close']].rename(columns={'close': 'futures_price'})
+            
+            # Filter to overlap period
+            spot_overlap = spot_clean[(spot_clean['timestamp'] >= overlap_start) & 
+                                     (spot_clean['timestamp'] <= overlap_end)]
+            futures_overlap = futures_clean[(futures_clean['timestamp'] >= overlap_start) & 
+                                           (futures_clean['timestamp'] <= overlap_end)]
+            
+            inner_join_records = len(pd.merge(spot_overlap, futures_overlap, on='timestamp', how='inner'))
+            
+            if inner_join_records < expected_records * 0.8:
+                data_loss_pct = (1 - inner_join_records / expected_records) * 100
+                warnings.append(f"⚠️  Significant data gaps detected: {data_loss_pct:.1f}% of expected records missing")
+        
+        # Display warnings prominently
+        if warnings:
+            print(f"\n{'='*60}")
+            print(f"🚨 DATA QUALITY WARNINGS:")
+            for warning in warnings:
+                print(f"   {warning}")
+            print(f"{'='*60}")
+            
+            # Ask user if they want to continue
+            response = input(f"\nDo you want to continue with the backtest? (y/n): ").lower().strip()
+            if response not in ['y', 'yes']:
+                print("Backtest cancelled.")
+                return 1
+        
+        # Initialize backtest engine
+        engine = ArbitrageBacktestEngine(config, logger)
+        
+        # Load data into engine
+        if not engine.load_data(spot_data, futures_data, funding_data, margin_data):
+            print("❌ Failed to load data into backtest engine")
+            return 1
+        
+        print(f"✅ Data aligned: {len(engine.data):,} records")
+        print(f"   Time range: {engine.data['datetime'].min()} to {engine.data['datetime'].max()}")
+        
+        # Run backtest
+        print(f"\n🚀 Starting backtest with ${args.capital:,.2f} initial capital...")
+        print("   Strategy: 3-level arbitrage (0.05%, 0.10%, 0.15% spreads)")
+        print("   Position: Short futures / Long spot when futures > spot and spread > threshold")
+        print("   Exit: When spread reaches 0%")
+        
+        results = engine.run_backtest(args.capital)
+        
+        # Display results
+        engine.print_results_summary(results)
+        
+        # Note: CSV export removed - only PDF output as requested
+        
+        # Additional analysis
+        if results['total_trades'] > 0:
+            print(f"\n📈 ADDITIONAL ANALYSIS:")
+            
+            # Annualized metrics
+            total_days = results['total_days']
+            if total_days > 0:
+                annualized_return = (results['total_return_pct'] / 100 + 1) ** (365.25 / total_days) - 1
+                print(f"   Annualized Return:   {annualized_return * 100:12.2f}%")
+            
+            # Risk metrics
+            daily_returns = engine.data['portfolio_value'].pct_change().dropna()
+            if len(daily_returns) > 1:
+                volatility = daily_returns.std() * (252 ** 0.5) * 100  # Annualized
+                if volatility > 0:
+                    sharpe_ratio = (annualized_return * 100) / volatility if 'annualized_return' in locals() else 0
+                    print(f"   Annualized Volatility: {volatility:12.2f}%")
+                    print(f"   Sharpe Ratio:        {sharpe_ratio:12.2f}")
+            
+            # Fee analysis
+            fee_pct = (results['total_fees'] / args.capital) * 100
+            print(f"   Fee Impact:          {fee_pct:12.2f}%")
+        
+        # Generate PDF report (always generated as single output)
+        print(f"\n📄 Generating PDF report...")
+        pdf_output = f"report_{args.symbol}_{args.timeframe}.pdf"
+        if engine.generate_pdf_report(results, pdf_output):
+            print(f"✅ PDF report saved to: {pdf_output}")
+        else:
+            print(f"❌ Failed to generate PDF report")
+        
+        print(f"\n✅ Backtest completed successfully!")
         
     except Exception as e:
         print(f"❌ Backtest failed: {e}")

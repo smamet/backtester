@@ -56,6 +56,7 @@ class Config:
     transaction_fee_rate: float = 0.001  # 0.1% per transaction
     funding_rate_frequency: int = 8  # Funding every 8 hours
     margin_rate_frequency: int = 1  # Margin rates hourly
+    slippage: float = 0.0001  # 0.01% slippage (1 basis point)
     
     # === File Extensions ===
     data_format: str = "feather"
@@ -176,7 +177,8 @@ class Config:
             "chunk_size_days": self.chunk_size_days,
             "transaction_fee_rate": self.transaction_fee_rate,
             "funding_rate_frequency": self.funding_rate_frequency,
-            "margin_rate_frequency": self.margin_rate_frequency
+            "margin_rate_frequency": self.margin_rate_frequency,
+            "slippage": self.slippage
         }
 
 

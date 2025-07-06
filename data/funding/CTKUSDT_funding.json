@@ -2,9 +2,9 @@
   "symbol": "CTKUSDT",
   "timeframe": "funding",
   "data_type": "funding",
-  "total_records": 200,
-  "first_date": "2025-04-30T08:00:00",
-  "last_date": "2025-06-19T00:00:00.005000",
-  "file_size_bytes": 15666,
-  "last_updated": "2025-07-05T23:41:16.074608"
+  "total_records": 300,
+  "first_date": "2025-03-28T16:00:00",
+  "last_date": "2025-06-19T12:00:00",
+  "file_size_bytes": 20882,
+  "last_updated": "2025-07-06T11:15:38.510265"
 }

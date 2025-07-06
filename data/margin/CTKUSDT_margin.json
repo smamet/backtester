@@ -1,0 +1,10 @@
+{
+  "symbol": "CTKUSDT",
+  "timeframe": "margin",
+  "data_type": "margin",
+  "total_records": 313,
+  "first_date": "2025-03-03T08:00:00",
+  "last_date": "2025-06-15T08:00:00",
+  "file_size_bytes": 14882,
+  "last_updated": "2025-07-06T11:15:38.521539"
+}

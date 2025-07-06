@@ -2,6 +2,6 @@
 Backtesting module for the backtester package.
 """
 
-from .backtest_engine import BacktestEngine
+from .backtest_engine import ArbitrageBacktestEngine
 
-__all__ = ["BacktestEngine"] 
+__all__ = ["ArbitrageBacktestEngine"] 

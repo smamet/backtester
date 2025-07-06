@@ -3,8 +3,8 @@
   "timeframe": "1h",
   "data_type": "spot",
   "total_records": 2000,
-  "first_date": "2025-03-02T20:00:00",
-  "last_date": "2025-06-14T23:00:00",
-  "file_size_bytes": 71882,
-  "last_updated": "2025-07-05T23:41:14.336285"
+  "first_date": "2025-03-03T08:00:00",
+  "last_date": "2025-06-15T11:00:00",
+  "file_size_bytes": 71842,
+  "last_updated": "2025-07-06T11:15:35.851107"
 }

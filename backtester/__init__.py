@@ -16,6 +16,6 @@ __author__ = "Your Name"
 
 from .config import Config
 from .downloader import DataDownloader
-from .backtest import BacktestEngine
+from .backtest import ArbitrageBacktestEngine
 
-__all__ = ["Config", "DataDownloader", "BacktestEngine"] 
+__all__ = ["Config", "DataDownloader", "ArbitrageBacktestEngine"] 
