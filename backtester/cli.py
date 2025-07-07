@@ -70,7 +70,7 @@ Examples:
     inspect_parser = subparsers.add_parser('inspect', help='Inspect downloaded data')
     inspect_parser.add_argument('--symbol', type=str, default='BTCUSDT',
                                help='Trading symbol (default: BTCUSDT)')
-    inspect_parser.add_argument('--market-type', type=str, choices=['spot', 'futures', 'funding'],
+    inspect_parser.add_argument('--market-type', type=str, choices=['spot', 'futures', 'funding', 'margin'],
                                default='spot', help='Market type to inspect (default: spot)')
     inspect_parser.add_argument('--lines', type=int, default=5,
                                help='Number of lines to show for head/tail (default: 5)')
@@ -122,7 +122,7 @@ def print_data_summary_line(data_type: str, data_info: dict, detailed: bool = Fa
     Print a single line of data summary.
     
     Args:
-        data_type: Type of data ('spot', 'futures', 'funding')
+        data_type: Type of data ('spot', 'futures', 'funding', 'margin')
         data_info: Dictionary with data information
         detailed: Whether to show detailed info or simple format
     """
@@ -150,7 +150,7 @@ def print_validation_result(data_type: str, is_valid: bool):
     Print validation result for a data type.
     
     Args:
-        data_type: Type of data ('spot', 'futures', 'funding')
+        data_type: Type of data ('spot', 'futures', 'funding', 'margin')
         is_valid: Whether the data is valid
     """
     display_name = data_type.capitalize()
@@ -165,7 +165,7 @@ def print_fix_results(fix_results: dict):
     Args:
         fix_results: Dictionary with fix results
     """
-    market_types = ['spot', 'futures', 'funding']
+    market_types = ['spot', 'futures', 'funding', 'margin']
     
     for market_type in market_types:
         filled_key = f'{market_type}_filled_gaps'
@@ -224,7 +224,7 @@ def cmd_download(args, config: Config, logger: logging.Logger):
             print(f"\n📋 Data Summary for {summary['symbol']}:")
             
             # Print summary for each data type
-            for data_type in ['spot', 'futures', 'funding']:
+            for data_type in ['spot', 'futures', 'funding', 'margin']:
                 data_key = f'{data_type}_data'
                 print_data_summary_line(data_type, summary.get(data_key), detailed=False)
             
@@ -244,7 +244,7 @@ def print_coverage_info(market_type: str, gap_analysis: dict):
     Print coverage information for a specific market type.
     
     Args:
-        market_type: Market type name (e.g., 'spot', 'futures', 'funding')
+        market_type: Market type name (e.g., 'spot', 'futures', 'funding', 'margin')
         gap_analysis: Gap analysis dictionary
     """
     coverage_key = f'{market_type}_coverage'
@@ -279,7 +279,7 @@ def cmd_status(args, config: Config, logger: logging.Logger):
         print(f"\n📋 Data Summary for {summary['symbol']}:")
         
         # Print detailed summary for each data type
-        for data_type in ['spot', 'futures', 'funding']:
+        for data_type in ['spot', 'futures', 'funding', 'margin']:
             data_key = f'{data_type}_data'
             print_data_summary_line(data_type, summary.get(data_key), detailed=True)
         
@@ -380,7 +380,7 @@ def cmd_verify(args, config: Config, logger: logging.Logger):
         print(f"\n🔍 Verification Results for {verification['symbol']}:")
         
         # Print validation results for each data type
-        for data_type in ['spot', 'futures', 'funding']:
+        for data_type in ['spot', 'futures', 'funding', 'margin']:
             valid_key = f'{data_type}_valid'
             print_validation_result(data_type, verification.get(valid_key, False))
         
